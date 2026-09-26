@@ -1,6 +1,5 @@
 """
 Adversarial redaction tests – issue #28.
-# harpocrates:ignore-file
 
 Covers:
   - RedactionEngine (analytics/redaction.py): nested secret fields, value-pattern

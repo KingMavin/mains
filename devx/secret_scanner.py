@@ -25,6 +25,40 @@ WITNESS_EXTENSIONS = {".tr"}
 # Max file size to scan to prevent memory exhaustion (oversized input check)
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MiB
 
+# Test fixtures and test suites containing synthetic/test credentials allowlisted from secret detection
+ALLOWLISTED_SECRET_PATHS = {
+    "devx/test_c2pa_parser.py",
+    "devx/test_validate_c2pa_fixture.py",
+    "devx/test_secret_scanner.py",
+    "backend/test_redaction_adversarial.py",
+    "backend/test_trace_fields.py",
+}
+
+ALLOWLISTED_FIXTURE_PREFIXES = (
+    "devx/fixtures/",
+)
+
+
+def is_secret_allowlisted(file_path: Path | str, repo_root: Path | None = None) -> bool:
+    """Check if the given file is an allowlisted test fixture or test suite."""
+    posix_path = str(file_path).replace("\\", "/")
+    if repo_root:
+        try:
+            posix_path = Path(file_path).resolve().relative_to(Path(repo_root).resolve()).as_posix()
+        except (ValueError, OSError):
+            pass
+
+    for allowed in ALLOWLISTED_SECRET_PATHS:
+        if posix_path == allowed or posix_path.endswith("/" + allowed):
+            return True
+            
+    for prefix in ALLOWLISTED_FIXTURE_PREFIXES:
+        if posix_path.startswith(prefix) or ("/" + prefix) in posix_path:
+            return True
+
+    return False
+
+
 
 def get_files_to_scan(repo_root: Path) -> List[str]:
     """Retrieve the list of files to scan. Prefers git tracked files if available."""
@@ -50,7 +84,7 @@ def get_files_to_scan(repo_root: Path) -> List[str]:
         return files
 
 
-def scan_file(file_path: Path) -> List[str]:
+def scan_file(file_path: Path, repo_root: Path | None = None) -> List[str]:
     """Scan a single file for restricted extensions and sensitive contents."""
     errors = []
     
@@ -89,6 +123,10 @@ def scan_file(file_path: Path) -> List[str]:
         errors.append("dependency-failure: unable to read file contents")
         return errors
         
+    # Check allowlist for synthetic test fixtures and suites
+    if is_secret_allowlisted(file_path, repo_root=repo_root):
+        return errors
+
     # Scan for credentials without capturing or logging the actual secret
     if b"harpocrates:ignore-file" not in content and b"trufflehog:ignore" not in content:
         if STELLAR_SECRET_REGEX.search(content):
@@ -113,7 +151,7 @@ def main() -> int:
         if file_path.name == "secret_scanner.py":
             continue
             
-        file_errors = scan_file(file_path)
+        file_errors = scan_file(file_path, repo_root=repo_root)
         
         if file_errors:
             has_errors = True

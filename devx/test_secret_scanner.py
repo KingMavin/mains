@@ -3,7 +3,7 @@ import unittest
 import tempfile
 import os
 from pathlib import Path
-from devx.secret_scanner import scan_file
+from devx.secret_scanner import scan_file, is_secret_allowlisted
 
 class TestSecretScanner(unittest.TestCase):
     def test_safe_file(self):
@@ -45,7 +45,27 @@ class TestSecretScanner(unittest.TestCase):
         self.addCleanup(path.unlink)
         errors = scan_file(path)
         self.assertIn("unsupported input: witness values are prohibited", errors)
+
+    def test_allowlisted_test_fixtures(self):
+        # Allowlisted test fixtures with dummy RSA key should not produce errors
+        self.assertTrue(is_secret_allowlisted(Path("devx/test_c2pa_parser.py")))
+        self.assertTrue(is_secret_allowlisted(Path("devx/test_validate_c2pa_fixture.py")))
+        self.assertTrue(is_secret_allowlisted(Path("backend/test_redaction_adversarial.py")))
+        self.assertTrue(is_secret_allowlisted(Path("backend/test_trace_fields.py")))
+        self.assertTrue(is_secret_allowlisted(Path("devx/fixtures/c2pa/manifest.json")))
+        self.assertFalse(is_secret_allowlisted(Path("backend/routes.py")))
+
+    def test_allowlisted_fixture_scan(self):
+        tmp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp_dir.cleanup)
+        devx_dir = Path(tmp_dir.name) / "devx"
+        devx_dir.mkdir(parents=True, exist_ok=True)
+        fixture_path = devx_dir / "test_c2pa_parser.py"
+        fixture_path.write_text('dummy = "-----BEGIN RSA PRIVATE KEY-----"', encoding="utf-8")
         
+        errors = scan_file(fixture_path, repo_root=Path(tmp_dir.name))
+        self.assertEqual(len(errors), 0)
+
     def test_oversized_file(self):
         # We can simulate by monkeypatching stat or creating a sparse file
         pass
