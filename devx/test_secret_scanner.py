@@ -50,6 +50,7 @@ class TestSecretScanner(unittest.TestCase):
         # Allowlisted test fixtures with dummy RSA key should not produce errors
         self.assertTrue(is_secret_allowlisted(Path("devx/test_c2pa_parser.py")))
         self.assertTrue(is_secret_allowlisted(Path("devx/test_validate_c2pa_fixture.py")))
+        self.assertTrue(is_secret_allowlisted(Path("devx/tests/test_retain_proof_artifacts.py")))
         self.assertTrue(is_secret_allowlisted(Path("backend/test_redaction_adversarial.py")))
         self.assertTrue(is_secret_allowlisted(Path("backend/test_trace_fields.py")))
         self.assertTrue(is_secret_allowlisted(Path("devx/fixtures/c2pa/manifest.json")))

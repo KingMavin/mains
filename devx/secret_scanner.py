@@ -30,6 +30,7 @@ ALLOWLISTED_SECRET_PATHS = {
     "devx/test_c2pa_parser.py",
     "devx/test_validate_c2pa_fixture.py",
     "devx/test_secret_scanner.py",
+    "devx/tests/test_retain_proof_artifacts.py",
     "backend/test_redaction_adversarial.py",
     "backend/test_trace_fields.py",
 }
