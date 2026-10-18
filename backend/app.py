@@ -56,6 +56,7 @@ from db import (
     database_url,
     decode_proof_events_cursor,
     find_proof_events_by_video,
+    find_proof_events_by_proof_id,
     find_proof_owner,
     find_lineage_by_output_digest,
     find_lineage_by_actor,
@@ -1323,7 +1324,10 @@ def create_app() -> Flask:
                     # Since on-chain revocation isn't visible here, we use tx_status if available.
                     has_confirmed = any(e.get("tx_status") == "confirmed" for e in events)
                     has_failed = any(e.get("tx_status") == "failed" for e in events)
-                    has_revoked = any(e.get("tx_status") == "revoked" for e in events)  # Future compat
+                    has_revoked = any(
+                        e.get("tx_status") == "revoked" or e.get("event_type") == "revoke"
+                        for e in events
+                    )
                     
                     if has_revoked:
                         status = "revoked"

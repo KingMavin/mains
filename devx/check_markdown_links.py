@@ -78,7 +78,7 @@ def github_slug(text: str) -> str:
     cleaned = cleaned.lower()
     # 3. Strip punctuation: keep alphanumeric, whitespace, hyphens, and underscores
     # Note: in Python regex, [^\w\s-] matches punctuation (where \w includes alphanumeric and underscore)
-    cleaned = re.sub(r"[^\w\s-]", "", cleaned)
+    cleaned = re.sub(r"[^\w\s-]", "", cleaned).strip()
     # 4. Replace whitespace with hyphens
     cleaned = re.sub(r"\s", "-", cleaned)
     return cleaned
