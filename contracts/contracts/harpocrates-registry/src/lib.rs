@@ -1278,6 +1278,9 @@ pub const DOMAIN_NETWORK_FIELD: [u8; 32] = [
 /// Expected length of v1 public inputs (5 × 32 = 160 bytes, including domain_tag).
 const SILENT_WITNESS_V1_INPUT_LEN: u32 = 160;
 
+/// Expected length of v1 browser public inputs (4 × 32 = 128 bytes, shipped in frontend/public/noir/silent_witness.json).
+const SILENT_WITNESS_BROWSER_V1_INPUT_LEN: u32 = 128;
+
 /// Length of the superseded bare v2 scoped frame (7 x 32 = 224 bytes, including
 /// domain_tag). It commits no circuit version, so a verifier could only *infer*
 /// one from the length. `register_anonymous_verified` rejects it outright with
@@ -2890,6 +2893,49 @@ impl HarpocratesRegistry {
             env.storage()
                 .persistent()
                 .set(&DataKey::VerifierNullifier(verifier.clone(), parsed.nullifier.clone()), &true);
+
+            let expires_at = compute_expires_at(&env);
+            save_record(
+                &env,
+                &proof_id,
+                ProofRecord {
+                    video_hash,
+                    metadata_hash,
+                    tier: TIER_SILENT_WITNESS,
+                    status: STATUS_REGISTERED,
+                    created_at: env.ledger().timestamp(),
+                    expires_at,
+                    source: None,
+                    issuer: None,
+                    nullifier: Some(parsed.nullifier),
+                    batch_size: 0,
+                },
+                None,
+            )
+        } else if input_len == SILENT_WITNESS_BROWSER_V1_INPUT_LEN {
+            // v1 browser artifact path (4 x 32 = 128 bytes, shipped in frontend/public/noir)
+            let parsed = parse_browser_silent_witness_public_inputs(&env, &public_inputs);
+            if parsed.video_hash != video_hash {
+                panic_with_error!(&env, RegistryError::InvalidPublicInputs);
+            }
+            require_active_credential_root(&env, &parsed.credential_root);
+
+            let verifier: Address = env
+                .storage()
+                .persistent()
+                .get(&DataKey::Verifier)
+                .unwrap_or_else(|| panic_with_error!(&env, RegistryError::VerifierNotSet));
+            require_verified_proof(
+                &env,
+                &verifier,
+                CIRCUIT_VERSION_SILENT_WITNESS_V1,
+                public_inputs,
+                proof,
+            );
+
+            env.storage()
+                .persistent()
+                .set(&DataKey::VerifierNullifier(verifier, parsed.nullifier.clone()), &true);
 
             let expires_at = compute_expires_at(&env);
             save_record(
@@ -5717,6 +5763,48 @@ fn parse_silent_witness_public_inputs(env: &Env, public_inputs: &Bytes) -> Silen
         domain_tag: BytesN::from_array(env, &domain_tag),
     }
 }
+
+struct BrowserSilentWitnessInputs {
+    video_hash: BytesN<32>,
+    credential_root: BytesN<32>,
+    nullifier: BytesN<32>,
+}
+
+/// Parse the 128-byte public-input blob produced by the browser silent_witness Noir circuit
+/// (frontend/public/noir/silent_witness.json).
+///
+/// Layout (4 x BN254 field elements, 32 bytes each):
+///   [ 0.. 32)  video_hash_hi (low 16 bytes)
+///   [32.. 64)  video_hash_lo (low 16 bytes)
+///   [64.. 96)  credential_root
+///   [96..128)  nullifier
+fn parse_browser_silent_witness_public_inputs(
+    env: &Env,
+    public_inputs: &Bytes,
+) -> BrowserSilentWitnessInputs {
+    if public_inputs.len() != SILENT_WITNESS_BROWSER_V1_INPUT_LEN {
+        panic_with_error!(env, RegistryError::InvalidPublicInputs);
+    }
+    let mut frame = [0u8; 128];
+    public_inputs.copy_into_slice(&mut frame);
+
+    let mut video_hash = [0u8; 32];
+    video_hash[..16].copy_from_slice(&frame[16..32]);
+    video_hash[16..].copy_from_slice(&frame[48..64]);
+
+    let mut credential_root = [0u8; 32];
+    credential_root.copy_from_slice(&frame[64..96]);
+
+    let mut nullifier = [0u8; 32];
+    nullifier.copy_from_slice(&frame[96..128]);
+
+    BrowserSilentWitnessInputs {
+        video_hash: BytesN::from_array(env, &video_hash),
+        credential_root: BytesN::from_array(env, &credential_root),
+        nullifier: BytesN::from_array(env, &nullifier),
+    }
+}
+
 
 // ---------------------------------------------------------------------------
 // Silent Witness v2 (scoped) public input parsing
