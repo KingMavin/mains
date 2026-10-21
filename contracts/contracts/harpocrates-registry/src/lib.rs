@@ -3349,6 +3349,7 @@ impl HarpocratesRegistry {
         metadata_hash: BytesN<32>,
         proof_id: BytesN<32>,
     ) -> ProofRecord {
+        require_initialized(&env);
         require_domain_unpaused(&env, PAUSE_DOMAIN_TIER2_REGISTRATION);
         source.require_auth();
         require_unique(&env, &proof_id, &video_hash);
@@ -3381,6 +3382,7 @@ impl HarpocratesRegistry {
         count: u32,
         metadata_hash: BytesN<32>,
     ) -> BatchRecord {
+        require_initialized(&env);
         require_domain_unpaused(&env, PAUSE_DOMAIN_TIER2_REGISTRATION);
         source.require_auth();
 
@@ -3546,6 +3548,7 @@ impl HarpocratesRegistry {
         scope: u32,
         duration_secs: u64,
     ) -> u64 {
+        require_initialized(&env);
         grantor.require_auth();
 
         if grantor == delegate {
@@ -3602,6 +3605,7 @@ impl HarpocratesRegistry {
     /// delegation that does not exist is a no-op rather than an error, so
     /// retries and concurrent revocations converge.
     pub fn revoke_delegation(env: Env, revoker: Address, grantor: Address, delegate: Address) {
+        require_initialized(&env);
         revoker.require_auth();
 
         if revoker != grantor {
@@ -4121,6 +4125,7 @@ impl HarpocratesRegistry {
         output_digest: BytesN<32>,
         depth: u32,
     ) -> LineageRecord {
+        require_initialized(&env);
         actor.require_auth();
 
         // A lineage record is immutable evidence. Re-registering an output
@@ -5393,6 +5398,13 @@ impl HarpocratesRegistry {
 
         disputes
     }
+}
+
+fn require_initialized(env: &Env) {
+    if !env.storage().persistent().has(&DataKey::Admin) {
+        panic_with_error!(env, RegistryError::NotInitialized);
+    }
+}
 
 fn require_admin(env: &Env, candidate: &Address) {
     let admin: Option<Address> = env.storage().persistent().get(&DataKey::Admin);
@@ -7142,4 +7154,6 @@ mod test_verifier_versions;
 mod test_ttl;
 #[cfg(test)]
 mod test_list_credential_roots;
+#[cfg(test)]
+mod test_uninitialized;
 
